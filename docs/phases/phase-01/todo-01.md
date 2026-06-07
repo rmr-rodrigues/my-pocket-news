@@ -131,7 +131,7 @@ Creates secure storage for LLM provider configuration.
 
 ## Group: Background Processing
 
-### [ ] BG-1 — Article extraction pipeline (HTML fetch + Jsoup + Readability4J)
+### [x] BG-1 — Article extraction pipeline (HTML fetch + Jsoup + Readability4J)
 
 Creates the extraction logic used inside the worker.
 
@@ -159,7 +159,7 @@ Creates the extraction logic used inside the worker.
 
 ---
 
-### [ ] BG-2 — LlmClient interface and provider implementations
+### [x] BG-2 — LlmClient interface and provider implementations
 
 Creates the LLM abstraction layer.
 
@@ -216,7 +216,7 @@ Creates the LLM abstraction layer.
 
 ---
 
-### [ ] BG-3 — Notification channels and notification helper
+### [x] BG-3 — Notification channels and notification helper
 
 Creates the notification infrastructure.
 
@@ -236,7 +236,7 @@ Creates the notification infrastructure.
 
 ---
 
-### [ ] BG-4 — Custom WorkerFactory and ArticleProcessingWorker
+### [x] BG-4 — Custom WorkerFactory and ArticleProcessingWorker
 
 Creates the WorkManager worker and the factory required for manual dependency injection.
 
