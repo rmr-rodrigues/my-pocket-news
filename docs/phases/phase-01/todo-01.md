@@ -336,7 +336,7 @@ Creates the app-level object graph and wires all singletons.
 
 ## Group: UI
 
-### [ ] FE-1 — Settings screen
+### [x] FE-1 — Settings screen
 
 Creates the LLM provider configuration UI.
 
@@ -369,7 +369,7 @@ Creates the LLM provider configuration UI.
 
 ---
 
-### [ ] FE-2 — Article list screen
+### [x] FE-2 — Article list screen
 
 Creates the main screen showing all saved articles.
 
@@ -399,7 +399,7 @@ Creates the main screen showing all saved articles.
 
 ---
 
-### [ ] FE-3 — Article detail screen
+### [x] FE-3 — Article detail screen
 
 Creates the screen showing full article content.
 
@@ -434,7 +434,7 @@ Creates the screen showing full article content.
 
 ---
 
-### [ ] FE-4 — ShareActivity, navigation host, and app entry points
+### [x] FE-4 — ShareActivity, navigation host, and app entry points
 
 Creates the navigation graph and the share entry point.
 
