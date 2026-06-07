@@ -23,4 +23,7 @@ interface ArticleDao {
 
     @Query("SELECT * FROM articles WHERE id = :id LIMIT 1")
     fun getByIdFlow(id: Long): Flow<Article?>
+
+    @Query("SELECT * FROM articles WHERE url = :url AND status IN ('PENDING', 'PROCESSING') LIMIT 1")
+    suspend fun getByUrlAndPendingOrProcessing(url: String): Article?
 }
