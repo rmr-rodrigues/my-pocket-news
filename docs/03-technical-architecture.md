@@ -1,303 +1,253 @@
 # 03 — Technical Architecture
 
-<!-- This document defines the technical decisions for this project.
-     It covers the stack, infrastructure, deployment strategy, and key architectural choices.
-     Focus on the WHY behind each decision, not just the WHAT. -->
-
 ---
 
 ## Architecture Overview
 
-<!-- ASCII diagram showing the high-level components and how they communicate.
-     Adapt to the project type — remove layers that do not apply. -->
-
 ```
-┌─────────────────────────────────────┐
-│         Client (Browser / App)      │
-│  [Framework] + local state          │
-│  client-side validation             │
-└────────────────┬────────────────────┘
-                 │ HTTPS / REST + JSON
-┌────────────────▼────────────────────┐
-│           API Server                │
-│  auth, [domain modules]             │
-└──────┬──────────────────┬───────────┘
-       │                  │
-┌──────▼──────┐    ┌──────▼──────────┐
-│  Database   │    │   Job Queue     │
-│  [choice]   │    │   [choice]      │
-└─────────────┘    └──────┬──────────┘
-                          │
-                   ┌──────▼──────────┐
-                   │  Worker Process  │
-                   │  [async jobs]    │
-                   └──────┬──────────┘
-                          │
-                   ┌──────▼──────────┐
-                   │  Object Storage  │
-                   │  [choice]        │
-                   └─────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                  Android App (single process)        │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │  UI Layer (Jetpack Compose)                     │ │
+│  │  ArticleListScreen / ArticleDetailScreen /      │ │
+│  │  SettingsScreen                                 │ │
+│  └────────────────────┬────────────────────────────┘ │
+│                       │ ViewModel + StateFlow         │
+│  ┌────────────────────▼────────────────────────────┐ │
+│  │  Domain / Repository Layer                      │ │
+│  │  ArticleRepository  LlmClient (interface)       │ │
+│  └──────────┬─────────────────────┬───────────────┘ │
+│             │                     │                  │
+│  ┌──────────▼──────┐   ┌──────────▼──────────────┐  │
+│  │  Room Database  │   │  WorkManager             │  │
+│  │  (SQLite)       │   │  ArticleProcessingWorker │  │
+│  └─────────────────┘   └──────────┬───────────────┘  │
+│                                   │                  │
+│                         ┌─────────▼─────────────┐   │
+│                         │  OkHttp               │   │
+│                         │  ├─ HTML fetch        │   │
+│                         │  └─ LLM API call      │   │
+│                         └───────────────────────┘   │
+└──────────────────────────────────────────────────────┘
+
+External:
+  ┌──────────────────────┐
+  │  LLM API             │
+  │  (OpenAI-compatible) │
+  └──────────────────────┘
 ```
 
 ---
 
 ## Tech Stack Decisions
 
-<!-- For each concern, record the chosen technology and the reason.
-     This makes it easy for new agents to understand constraints
-     without re-opening discussions that are already decided. -->
-
 | Concern | Choice | Reason |
 |---|---|---|
-| Frontend framework | [e.g. React 18 + TypeScript] | [e.g. team familiarity, ecosystem] |
-| Build tool | [e.g. Vite] | [e.g. fast dev server, minimal config] |
-| UI / Map library | [e.g. MapLibre GL JS] | [e.g. open source, no API key required] |
-| State management | [e.g. Zustand] | [e.g. simple, no boilerplate] |
-| Backend framework | [e.g. NestJS] | [e.g. modular, TypeScript-native] |
-| Database | [e.g. PostgreSQL + PostGIS] | [e.g. spatial queries, managed via Supabase] |
-| Background jobs | [e.g. pg-boss] | [e.g. PostgreSQL-backed, no extra infra] |
-| Object storage | [e.g. Cloudflare R2] | [e.g. zero egress cost] |
-| Auth | [e.g. Supabase Auth] | [e.g. managed, JWT-compatible] |
-| Mobile | [e.g. Android / Kotlin / Jetpack Compose] | [e.g. native performance, Compose UI] |
-| Monorepo | [e.g. npm workspaces] | [e.g. native to npm, no extra tooling] |
+| Language | Kotlin | Android standard; null-safety, coroutines, concise syntax |
+| UI framework | Jetpack Compose | Modern Android UI; no XML layouts; declarative state model |
+| Local database | Room (SQLite) | Android-native ORM; type-safe queries; no external DB process |
+| Networking | OkHttp | Mature, lightweight HTTP client; no DI framework required |
+| HTML extraction | Jsoup | Java-native HTML parser; no JS runtime; fast and reliable for static HTML |
+| Article extraction | Readability4J | Kotlin/Java port of Mozilla Readability; extracts clean article body and title; no JS runtime required |
+| Background processing | WorkManager | Android-recommended for deferrable, guaranteed background work; survives process death and reboots |
+| Async | Kotlin Coroutines + Flow | Standard Android async; integrates with Room, WorkManager, and Compose |
+| Secure storage | EncryptedSharedPreferences | Android Jetpack security library; API key never stored in plaintext |
+| DI | Manual / constructor injection | No Hilt/Dagger in v1; keep the dependency graph simple and explicit |
+| Build | Gradle (Kotlin DSL) | Standard Android build system |
+| Min SDK | Android 8.0 (API 26) | WorkManager and EncryptedSharedPreferences support; covers ~98% of active devices |
 
 ---
 
 ## Components
 
-<!-- Describe each major component: its technology, hosting, and responsibilities.
-     Remove components that do not apply to this project. -->
+### UI Layer (Jetpack Compose)
 
-### Frontend / Client
+**Technology:** Kotlin + Jetpack Compose
+**Hosting:** On-device (Android app)
 
-**Technology:** [e.g. React + TypeScript + Vite]
-**Hosting:** [e.g. Cloudflare Pages (free tier)]
-
-Responsibilities:
-- [responsibility 1 — e.g. render the map and all interactive editing tools]
-- [responsibility 2 — e.g. manage local editing state without backend calls]
-- [responsibility 3 — e.g. run lightweight client-side validation in real time]
-- [responsibility 4 — e.g. trigger import, validation, and publication via API calls]
+Screens:
+- `ArticleListScreen` — sorted list of saved articles with status indicators (processing spinner, failed badge, summary preview)
+- `ArticleDetailScreen` — full extracted body, summary, title, and link to original URL
+- `SettingsScreen` — provider selector (OpenRouter / OpenAI), API key input, model name input
 
 Key design principles:
-- [principle 1 — e.g. editing state lives entirely in the browser between saves]
-- [principle 2 — e.g. no per-action API calls during map/canvas interaction]
-- [principle 3 — e.g. backend is called for: initial load, save, import, publish]
+- Each screen has one ViewModel; state is a single sealed `UiState` exposed as `StateFlow`
+- No business logic in Composables — all logic lives in ViewModels or the repository layer
+- Navigation handled by Jetpack Navigation Compose with a single `NavHost`
 
 ---
 
-### Backend (API)
+### Repository Layer
 
-**Technology:** [e.g. TypeScript + NestJS]
-**Hosting:** [e.g. Hetzner Cloud VPS via Docker + Coolify]
+**Technology:** Kotlin
 
-Responsibilities:
-- [responsibility 1 — e.g. authentication and authorization]
-- [responsibility 2 — e.g. project and organization management]
-- [responsibility 3 — e.g. accepting file uploads and queuing import jobs]
-- [responsibility 4 — e.g. running validation before publication]
+`ArticleRepository`:
+- Single source of truth for `Article` data
+- Exposes `Flow<List<Article>>` from Room for the list screen
+- Delegates background processing to WorkManager (enqueues work, does not run it inline)
 
-Module structure:
-
+`LlmClient` (interface):
+```kotlin
+interface LlmClient {
+    suspend fun summarise(title: String, bodyText: String): String
+}
 ```
-src/
-  auth/           # authentication, JWT verification
-  [module-1]/     # [description]
-  [module-2]/     # [description]
-  [module-3]/     # [description]
-  jobs/           # job queue setup and definitions
-  storage/        # object storage client abstraction
-  common/         # shared types, utilities, error handling
-```
+- One implementation per provider: `OpenAiLlmClient`, `OpenRouterLlmClient`
+- Both use the OpenAI-compatible `/v1/chat/completions` endpoint
+- The difference is `baseUrl` and optional headers (e.g. `HTTP-Referer` for OpenRouter)
+- Selected at runtime based on the persisted `LlmProviderConfig`
 
 ---
 
-### Worker
+### Background Processing (WorkManager)
 
-**Technology:** [e.g. TypeScript — same codebase as API]
-**Hosting:** [e.g. same VPS, separate Docker process]
+**Technology:** WorkManager + Kotlin Coroutines (`CoroutineWorker`)
 
-Responsibilities:
-- [responsibility 1 — e.g. process import jobs: parse uploaded files]
-- [responsibility 2 — e.g. normalize imported data into the database]
-- [responsibility 3 — e.g. generate output files on publish]
+`ArticleProcessingWorker`:
 
-Job types:
+1. Receives the article URL as input data
+2. Fetches raw HTML via OkHttp
+3. Parses and extracts article content using Jsoup (fetch + DOM prep) → Readability4J (article extraction)
+4. Reads `LlmProviderConfig` from `EncryptedSharedPreferences`
+5. Builds the appropriate `LlmClient` implementation
+6. Calls `LlmClient.summarise(title, bodyText)`
+7. Updates the `Article` record in Room with status `DONE`, summary, title, and timestamps
+8. Posts a completion notification via `NotificationManager`
+9. On any unrecoverable error: updates status to `FAILED` with `errorMessage`
 
-| Job | Trigger | What it does |
-|---|---|---|
-| `[job.name]` | [trigger] | [description] |
-| `[job.name]` | [trigger] | [description] |
+Processing notification:
+- Posted when work begins (Foreground Service via `setForeground()` in `CoroutineWorker`)
+- Silent (no sound, low priority) — informs the OS to keep the process alive
+- Dismissed automatically when work completes
 
 ---
 
-### Database
+### Local Database (Room)
 
-**Technology:** [e.g. PostgreSQL + PostGIS]
-**Hosting:** [e.g. Supabase (managed, includes PostGIS)]
+**Technology:** Room 2.x (SQLite on-device)
 
-Main tables:
+Tables:
 
 | Table | Purpose |
 |---|---|
-| `[table_name]` | [purpose] |
-| `[table_name]` | [purpose] |
-| `[table_name]` | [purpose] |
+| `articles` | Persists all saved Article records |
 
-Special capabilities used:
-- [e.g. PostGIS `GEOMETRY(Point, 4326)` for spatial queries]
-- [e.g. spatial index on geometry columns]
+Schema:
 
----
-
-### Object Storage
-
-**Technology:** [e.g. Cloudflare R2 (S3-compatible)]
-
-Storage paths:
-
-| Path pattern | Contents |
-|---|---|
-| `[path/{id}]` | [e.g. raw uploaded import files] |
-| `[path/{id}]` | [e.g. generated output archives] |
-
-Why this choice:
-- [reason 1 — e.g. zero egress cost — output files are polled frequently]
-- [reason 2 — e.g. S3-compatible API — easy to swap if needed]
-
----
-
-### Mobile App (if applicable)
-
-**Technology:** [e.g. Android / Kotlin / Jetpack Compose]
-**Distribution:** [e.g. Google Play / direct APK]
-
-Responsibilities:
-- [responsibility 1 — e.g. GPS data capture with foreground service]
-- [responsibility 2 — e.g. offline-first data collection]
-- [responsibility 3 — e.g. export to formats compatible with the web platform]
-
----
-
-## Authentication
-
-**Approach:** [e.g. Supabase Auth / JWT / OAuth]
-
-- [auth detail 1 — e.g. email/password login with magic link option]
-- [auth detail 2 — e.g. JWT issued by Supabase, verified by the API]
-- [auth detail 3 — e.g. organization membership checked on every protected route]
-
-Deferred to later:
-- [e.g. multi-provider OAuth (Google, etc.)]
-
----
-
-## Infrastructure Layout
-
-```
-[Hosting provider — Frontend]
-  └── [domain] (frontend static build)
-
-[Hosting provider — Storage]
-  └── [domain] (output file hosting)
-
-[Hosting provider — Backend]
-  └── [Orchestration tool]
-        ├── [service-name] (API, Docker)
-        └── [service-name] (Worker, Docker)
-
-[Database provider]
-  └── PostgreSQL [+ PostGIS if applicable]
-  └── Auth [if applicable]
+```sql
+CREATE TABLE articles (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    url           TEXT    NOT NULL,
+    title         TEXT    NOT NULL DEFAULT '',
+    summary       TEXT    NOT NULL DEFAULT '',
+    body_text     TEXT    NOT NULL DEFAULT '',
+    provider_used TEXT    NOT NULL DEFAULT '',
+    model_used    TEXT    NOT NULL DEFAULT '',
+    status        TEXT    NOT NULL DEFAULT 'PENDING',
+    error_message TEXT,
+    created_at    INTEGER NOT NULL,
+    processed_at  INTEGER
+);
 ```
 
----
-
-## Deployment Strategy
-
-**Development:**
-
-| Resource | Option | Cost |
-|---|---|---|
-| VPS (backend) | [e.g. Hetzner CPX11] | [e.g. ~€4/mo] |
-| Database | [e.g. Supabase free tier] | €0 |
-| Storage | [e.g. Cloudflare R2 free tier] | €0 |
-| Frontend | [e.g. Cloudflare Pages free tier] | €0 |
-| **Total** | | **~€X/mo** |
-
-**Production (estimated at [N] active users/clients):**
-
-| Resource | Option | Cost |
-|---|---|---|
-| VPS (backend) | [e.g. Hetzner CPX21] | [e.g. ~€8/mo] |
-| Database | [e.g. Supabase Pro] | [e.g. ~$25/mo] |
-| Storage | [e.g. Cloudflare R2] | [e.g. ~$1/mo] |
-| Frontend | [e.g. Cloudflare Pages free tier] | €0 |
-| **Total** | | **~€X/mo** |
-
-**CI/CD:**
-- [e.g. GitHub Actions for tests and Docker image builds]
-- [e.g. Coolify handles deployment via webhook]
+`ArticleDao`:
+- `insert(article: Article): Long`
+- `update(article: Article)`
+- `getAll(): Flow<List<Article>>`
+- `getById(id: Long): Article?`
 
 ---
 
-## Client-Side Editing Model
+### Secure Settings Storage
 
-<!-- Only relevant for products with a rich editing UI (map editor, canvas, form-heavy).
-     Remove this section if not applicable. -->
+**Technology:** `EncryptedSharedPreferences` (Jetpack Security)
 
-### Conclusion
+Keys stored:
+- `pref_provider` — provider identifier string
+- `pref_api_key` — API key (never logged or transmitted except to the LLM endpoint)
+- `pref_model` — model name string
+- `pref_base_url` — API base URL
 
-The editing experience is **local-first on the client**:
+Accessed via a `SettingsRepository` that wraps `EncryptedSharedPreferences` and exposes typed getters/setters.
 
-- data is loaded from the backend into the browser once
-- user works entirely locally — changes accumulate in local state
-- backend is called only when needed (save, import, publish)
+---
 
-### What happens on the client
+## LLM API Integration
 
-- [e.g. moving stops on the map]
-- [e.g. editing route geometry]
-- [e.g. reordering sequences]
-- [e.g. lightweight real-time validation feedback]
+Both providers use the OpenAI-compatible chat completions endpoint.
 
-### What requires the backend
+**Request shape:**
 
-- [e.g. persisting changes permanently]
-- [e.g. importing and parsing files]
-- [e.g. full validation]
-- [e.g. generating output files]
-- [e.g. publishing]
+```json
+{
+  "model": "<model_name>",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a news summariser. Summarise the following article in 3–5 sentences in the same language as the article. Be factual and concise."
+    },
+    {
+      "role": "user",
+      "content": "<article_title>\n\n<article_body_text>"
+    }
+  ],
+  "max_tokens": 512,
+  "temperature": 0.3
+}
+```
+
+**Response shape (relevant fields):**
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "content": "<summary_text>"
+      }
+    }
+  ]
+}
+```
+
+**Provider-specific differences:**
+
+| Concern | OpenAI | OpenRouter |
+|---|---|---|
+| Base URL | `https://api.openai.com/v1` | `https://openrouter.ai/api/v1` |
+| Auth header | `Authorization: Bearer <key>` | `Authorization: Bearer <key>` |
+| Extra headers | — | `HTTP-Referer: android-app://com.mypocketnews` |
+| Model name format | `gpt-4o-mini` | `openai/gpt-4o-mini` or `mistralai/...` |
+
+---
+
+## Notification Channels
+
+| Channel ID | Name | Importance | Use |
+|---|---|---|---|
+| `processing` | Article processing | `IMPORTANCE_LOW` | Silent foreground notification during WorkManager job |
+| `completion` | Article ready | `IMPORTANCE_DEFAULT` | Shown when article is successfully summarised |
+| `error` | Processing error | `IMPORTANCE_DEFAULT` | Shown when processing fails |
 
 ---
 
 ## Security Considerations
 
-- [e.g. all communication over HTTPS]
-- [e.g. JWT tokens verified on every API request]
-- [e.g. org isolation enforced at the query level]
-- [e.g. uploaded files checked for size limits; no execution of uploaded content]
-- [e.g. public-facing output URLs are intentionally public]
-
----
-
-## Scalability Notes
-
-- [e.g. the modular monolith allows extracting the worker as a separate service later]
-- [e.g. the API is stateless and can be scaled horizontally behind a load balancer]
-- [e.g. database connection pooling via PgBouncer or managed pooler]
-- [e.g. object storage scales transparently without application changes]
-
-For v1, [describe the simplest infrastructure that is sufficient].
+- The API key is stored exclusively in `EncryptedSharedPreferences` and never written to Room, logs, or shared preferences in plaintext
+- Network calls use HTTPS only; OkHttp enforces TLS
+- No data is sent to any server except the configured LLM endpoint and the article's origin server
+- The app declares `INTERNET` permission only; no location, contacts, or storage access
 
 ---
 
 ## Alternatives Considered
 
-<!-- Record alternatives that were evaluated and rejected.
-     This prevents re-opening the same discussions in future. -->
-
 | Concern | Alternative | Reason rejected |
 |---|---|---|
-| [concern] | [alternative] | [reason — e.g. "too expensive at this scale"] |
-| [concern] | [alternative] | [reason] |
+| HTML extraction | WebView with JS execution | Heavy, async, requires UI thread; overkill for static HTML articles |
+| HTML extraction | Mozilla Readability JS via J2V8 | Adds a JS runtime dependency (~5 MB); `readability4j` provides equivalent results without a runtime |
+| Background jobs | Foreground Service (manual) | WorkManager is the Android-recommended approach and handles process death, retries, and battery optimisation automatically |
+| Networking | Retrofit | Adds annotation processing; OkHttp directly is sufficient for two fixed endpoints |
+| DI | Hilt | Adds compile-time complexity; the dependency graph is small enough for manual injection in v1 |
+| Storage | DataStore (Proto) | EncryptedSharedPreferences is simpler for a small set of typed scalar settings |

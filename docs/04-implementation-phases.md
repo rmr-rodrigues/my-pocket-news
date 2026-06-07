@@ -1,197 +1,130 @@
 # 04 — Implementation Phases
 
-<!-- This document defines the full phase plan for the project.
-     Each phase produces something independently testable.
-     Later phases build on earlier ones without requiring rewrites.
-
-     Guiding constraint: OUTPUT FIRST.
-     The goal is to see real, working output as early as possible,
-     before investing in backend infrastructure, auth, or onboarding. -->
-
 ---
 
 ## Strategy
 
-[State the guiding principle for how this project is being built.
-Example: "The guiding constraint is output first — the goal is to see real data
-on a map / in the app / through the API as early as possible, before investing
-in backend infrastructure, auth, or onboarding.
-The initial test audience is the developer (dogfooding)."]
+The guiding constraint is working software first. The goal is to share a URL and receive a summary notification on a real device as early as possible, before investing in UI polish, search, or advanced configuration. Phase 1 is the complete end-to-end flow. Later phases add refinements, convenience features, and extensibility.
+
+The initial test audience is the developer (dogfooding on a personal device).
 
 ---
 
 ## Phase Summary
 
-<!-- This table gives any reader an instant overview of the full plan.
-     Add or remove columns based on what varies between phases for this project.
-     Common columns: Backend, Database, Auth, Mobile, Worker -->
-
-| Phase | Focus | Backend | Database | Auth |
-|---|---|---|---|---|
-| 1 — [Name] | [focus] | No | No | No |
-| 2 — [Name] | [focus] | Yes | No | No |
-| 3 — [Name] | [focus] | Yes | Yes | No |
-| 4 — [Name] | [focus] | Yes | Yes | No |
-| 5 — [Name] | [focus] | Yes | Yes | Yes |
-| 6 — [Name] | [focus] | Yes | Yes | Yes |
+| Phase | Focus | Room DB | WorkManager | LLM | UI |
+|---|---|---|---|---|---|
+| 1 — Core MVP | Share → Extract → Summarise → Persist | Yes | Yes | Yes | Basic list + detail + settings |
+| 2 — Refinements | Manual entry, search, retry, article management | Yes | Yes | Yes | Enhanced |
+| 3 — Extensibility | Local models, multi-level summaries, export | Yes | Yes | Yes + local | Enhanced |
 
 ---
 
-## Phase 1 — [Name]
+## Phase 1 — Core MVP
 
-**Goal:** [One sentence — what does this phase produce and what can the developer do at the end of it?]
+**Goal:** A developer can share any static-HTML news article URL from their Android device and receive a notification with the title when processing is complete; opening the app shows the summary and extracted body.
 
 ### In Scope
 
-- [concrete deliverable 1]
-- [concrete deliverable 2]
-- [concrete deliverable 3]
-- [concrete deliverable 4]
+- Android project scaffold: Gradle (Kotlin DSL), min SDK 26, single-module app
+- Room database with the `articles` table
+- `SettingsScreen` to configure LLM provider, API key, and model name
+- `EncryptedSharedPreferences`-backed `SettingsRepository`
+- `ShareActivity` with `ACTION_SEND` / `text/plain` Intent Filter
+- `ArticleProcessingWorker` (CoroutineWorker): fetch HTML → Jsoup + Readability4J extraction → LLM call → persist
+- `LlmClient` interface with `OpenAiLlmClient` and `OpenRouterLlmClient` implementations
+- Notification channels: processing (silent foreground) and completion/error
+- `ArticleListScreen`: flat list sorted by `createdAt` descending, status indicators
+- `ArticleDetailScreen`: title, summary, extracted body, link to original URL
+- Jetpack Navigation Compose wiring
 
 ### Out of Scope
 
-- [explicitly excluded 1]
-- [explicitly excluded 2]
-- [explicitly excluded 3]
+- Search or filtering of saved articles
+- Manual URL entry (only Share intent)
+- Re-summarisation of existing articles
+- Tags, folders, or any organisational structure
+- JavaScript-rendered pages
+- Paywall bypass
+- Cloud sync or backup
+- Unit or instrumented tests (deferred to Phase 2)
 
 ### Definition of Done
 
-- [verifiable criterion 1 — e.g. "Import a real file and see data rendered on screen"]
-- [verifiable criterion 2 — e.g. "Edit an item and see it update immediately without a server call"]
-- [verifiable criterion 3 — e.g. "Closing and reopening the browser loses all data (expected)"]
+- Sharing a static HTML news article URL opens My Pocket News, shows a silent notification "Processing article…"
+- Within a reasonable time (network dependent), a completion notification appears: "Article saved: [title]"
+- Opening the app shows the article in the list with its summary preview
+- Tapping the article shows the full detail screen with summary and extracted body
+- Sharing a URL when no LLM provider is configured navigates the user to Settings
+- Sharing an unreachable URL results in a FAILED article visible in the list with an error message
 
 ### Task Summary
 
 | Task | Description |
 |---|---|
-| A1 | [brief description] |
-| A2 | [brief description] |
-| B1 | [brief description] |
-| B2 | [brief description] |
-| C1 | [brief description] |
+| INFRA-1 | Android project scaffold and Gradle configuration |
+| INFRA-2 | Room database, entity, DAO, and database class |
+| INFRA-3 | EncryptedSharedPreferences-backed settings storage |
+| BG-1 | ArticleProcessingWorker: HTML fetch and article extraction pipeline |
+| BG-2 | LlmClient interface and provider implementations |
+| BG-3 | Notification channels and notification posting |
+| FE-1 | Settings screen with provider, key, and model inputs |
+| FE-2 | Article list screen with status indicators |
+| FE-3 | Article detail screen |
+| FE-4 | ShareActivity, Intent Filter, and WorkManager enqueue |
 
-→ Full task detail: [docs/phases/phase-01.md](phases/phase-01.md) *(generate when ready to implement)*
-
----
-
-## Phase 2 — [Name]
-
-**Goal:** [One sentence.]
-
-### In Scope
-
-- [deliverable 1]
-- [deliverable 2]
-- [deliverable 3]
-
-### Out of Scope
-
-- [excluded 1]
-- [excluded 2]
-
-### Definition of Done
-
-- [criterion 1]
-- [criterion 2]
-
-### Task Summary
-
-| Task | Description |
-|---|---|
-| A1 | [brief description] |
-| B1 | [brief description] |
-
-→ Full task detail: *not yet generated — will be created when Phase 1 is complete*
+→ Full task detail: [docs/phases/phase-01/todo-01.md](phases/phase-01/todo-01.md)
 
 ---
 
-## Phase 3 — [Name]
+## Phase 2 — Refinements
 
-**Goal:** [One sentence.]
+**Goal:** The app is convenient and robust enough for daily personal use: manual URL entry, search, retry on failed articles, and basic article management (delete).
 
 ### In Scope
 
-- [deliverable 1]
-- [deliverable 2]
+- Manual URL entry from within the app (no Share required)
+- Full-text search across saved articles (title + summary + body)
+- Retry action for FAILED articles
+- Delete article action (swipe-to-delete or contextual menu)
+- Unit tests for the extraction pipeline and LlmClient implementations
+- Improved error messages surfaced in the UI
 
 ### Out of Scope
 
-- [excluded 1]
+- Tags or folders
+- Cloud sync
+- Multiple LLM configuration profiles
 
 ### Definition of Done
 
-- [criterion 1]
-- [criterion 2]
-
-### Task Summary
-
-→ Full task detail: *not yet generated*
+- User can add an article by pasting a URL directly in the app without using the Share menu
+- Searching for a word in an article title returns that article in results
+- A FAILED article shows a "Retry" button that re-enqueues the processing job
+- Swiping an article in the list deletes it with an undo snackbar
 
 ---
 
-## Phase 4 — [Name]
+## Phase 3 — Extensibility
 
-**Goal:** [One sentence.]
+**Goal:** The app supports local LLM models (on-device inference) and offers more flexible summarisation options, enabling fully offline use.
 
 ### In Scope
 
-- [deliverable 1]
-- [deliverable 2]
+- Integration with a local model runtime (e.g. llama.cpp via JNI, or MLC LLM)
+- Multi-level summaries: one-sentence TL;DR + paragraph summary
+- Export: share summary as plain text
+- `LlmClient` extended to support local model providers without network access
 
 ### Out of Scope
 
-- [excluded 1]
+- Cloud sync
+- Multiple user profiles
 
 ### Definition of Done
 
-- [criterion 1]
-- [criterion 2]
-
-### Task Summary
-
-→ Full task detail: *not yet generated*
+- User can configure a local model in Settings and summarise an article without any network call to an external API
+- Each article detail screen shows both a one-sentence TL;DR and a paragraph summary
+- User can share the summary text via the Android Share sheet
 
 ---
-
-## Phase 5 — [Name]
-
-**Goal:** [One sentence.]
-
-### In Scope
-
-- [deliverable 1]
-- [deliverable 2]
-
-### Out of Scope
-
-- [excluded 1]
-
-### Definition of Done
-
-- [criterion 1]
-- [criterion 2]
-
-### Task Summary
-
-→ Full task detail: *not yet generated*
-
----
-
-## Phase 6 — [Name]
-
-**Goal:** [One sentence — typically "a product usable by someone without developer assistance"]
-
-### In Scope
-
-- [deliverable 1 — e.g. "full validation integrated in the completion flow"]
-- [deliverable 2 — e.g. "guided onboarding for new users"]
-- [deliverable 3 — e.g. "self-serve account registration"]
-
-### Out of Scope
-
-- [excluded 1]
-
-### Definition of Done
-
-- [criterion 1 — e.g. "A new user can register, complete the full flow, and publish without help"]
-- [criterion 2]

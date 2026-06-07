@@ -1,209 +1,136 @@
 # 02 — MVP Scope
 
-<!-- This document defines the exact scope of the first shippable version.
-     It covers which entities are modeled, what data is required,
-     what blocks publication/completion, and what is only a warning.
-     Be specific and opinionated. Vague scope leads to scope creep. -->
-
 ---
 
 ## Core MVP User Flow
 
-<!-- The end-to-end journey a user takes in the MVP.
-     Number the steps. Keep it to the happy path only. -->
-
-1. [Step 1 — e.g. "Create or join an organization"]
-2. [Step 2 — e.g. "Create a project"]
-3. [Step 3 — e.g. "Import data"]
-4. [Step 4 — e.g. "Visualize and correct"]
-5. [Step 5 — e.g. "Add required metadata"]
-6. [Step 6 — e.g. "Publish or export"]
+1. User finds an article in any Android app (browser, Twitter, Reddit, etc.)
+2. User taps the system Share button and selects "My Pocket News"
+3. The app enqueues a background job and shows a silent processing notification
+4. WorkManager fetches the HTML, extracts the article content using Jsoup + Readability4J, and calls the configured LLM API
+5. The LLM returns a summary; the app persists the article and summary to Room
+6. A completion notification is shown: "Article saved: [title]"
+7. User opens the app and sees the article in the list with its summary
+8. User taps the article to read the full extracted body or open the original URL
 
 ---
 
 ## MVP Entities
 
-<!-- For each entity in the domain, define its fields, GTFS/domain requirements,
-     and whether missing data blocks completion or is just a warning.
-     Add or remove entities as needed for this project. -->
+### Article
 
-### [Entity 1 — e.g. "Organization"]
+An Article represents a saved piece of web content with its extracted text and LLM-generated summary.
 
-<!-- One sentence describing what this entity represents. -->
-
-| Field | Required by domain | Required to publish/complete | Notes |
+| Field | Type | Required | Notes |
 |---|---|---|---|
-| [field_name] | yes / no | yes / no | [e.g. "Blocks publication if missing"] |
-| [field_name] | yes / no | yes / no | [e.g. "Warning if missing, defaults acceptable"] |
-| [field_name] | yes / no | no | Optional |
+| `id` | `Long` (auto-generated) | yes | Room primary key, auto-increment |
+| `url` | `String` | yes | Original URL received from the Share intent; must be non-empty and a valid HTTP/HTTPS URL |
+| `title` | `String` | yes | Extracted from the article HTML; fallback to URL hostname if extraction fails |
+| `summary` | `String` | yes | LLM-generated summary; non-empty if status is `DONE` |
+| `bodyText` | `String` | no | Full extracted article body (plain text); may be empty if extraction yields no body |
+| `providerUsed` | `String` | yes | Provider identifier used for summarisation (e.g. `"openrouter"`, `"openai"`) |
+| `modelUsed` | `String` | yes | Model name used (e.g. `"gpt-4o-mini"`, `"mistralai/mistral-7b-instruct"`) |
+| `status` | `Enum` | yes | `PENDING`, `PROCESSING`, `DONE`, `FAILED` |
+| `errorMessage` | `String` | no | Populated if status is `FAILED`; null otherwise |
+| `createdAt` | `Long` | yes | Unix timestamp (ms) at the moment of capture |
+| `processedAt` | `Long` | no | Unix timestamp (ms) when processing completed; null until then |
 
 Notes:
 
-- [important constraint or business rule for this entity]
-- [another constraint]
+- `url` uniqueness is not enforced in v1 — the user may save the same URL twice intentionally
+- `status` drives the UI state: list shows a spinner for `PROCESSING`, error badge for `FAILED`
+- A `FAILED` article is retained in the database with its `errorMessage`; the user can see what went wrong
 
 ---
 
-### [Entity 2 — e.g. "Stop / Asset / Item"]
+### LlmProviderConfig
 
-| Field | Required by domain | Required to publish/complete | Notes |
+Stores the user's configured LLM provider settings. There is exactly one active configuration at any time.
+
+| Field | Type | Required | Notes |
 |---|---|---|---|
-| [field_name] | yes / no | yes / no | |
-| [field_name] | yes / no | yes / no | |
-| [field_name] | yes / no | no | Optional |
+| `provider` | `String` | yes | Provider identifier: `"openrouter"` or `"openai"` in v1 |
+| `apiKey` | `String` | yes | User-supplied API key; stored in `EncryptedSharedPreferences`, not in Room |
+| `model` | `String` | yes | Model name string, free-text to support any OpenAI-compatible model |
+| `baseUrl` | `String` | yes | API base URL; defaults: OpenAI → `https://api.openai.com/v1`, OpenRouter → `https://openrouter.ai/api/v1` |
 
 Notes:
 
-- [constraint]
-
----
-
-### [Entity 3 — e.g. "Route / Flow / Process"]
-
-| Field | Required by domain | Required to publish/complete | Notes |
-|---|---|---|---|
-| [field_name] | yes / no | yes / no | |
-| [field_name] | yes / no | yes / no | |
-
-Notes:
-
-- [constraint]
-
----
-
-### [Entity 4 — add more as needed]
+- This configuration is stored in `EncryptedSharedPreferences`, not in the Room database
+- If no configuration is present, the app shows a prompt to configure before processing can begin
+- The `LlmClient` abstraction accepts this config at call time — no singleton dependency
 
 ---
 
 ## What Is NOT in MVP Scope
 
-<!-- Explicit list of features and capabilities that are intentionally excluded.
-     This prevents "but can't we just add..." conversations. -->
-
 The following are explicitly out of the first version:
 
-- [excluded feature 1 — e.g. "fare rules and fare attributes"]
-- [excluded feature 2]
-- [excluded feature 3]
-- [excluded feature 4]
-- [excluded feature 5]
+- Tags, categories, folders, or any organisational structure beyond the flat article list
+- Search within saved articles
+- Full HTML rendering — body text is plain text only
+- Offline-mode article fetching (articles are fetched at time of sharing, not queued for later)
+- JavaScript-rendered pages (SPAs with client-side-only rendering) — best-effort only via Readability4J
+- Re-summarisation of an already-processed article
+- Sharing or exporting articles
+- Multiple LLM configuration profiles
+- Cloud sync or backup
+- Paywall bypass
 
 ---
 
-## Import / Input Formats — v1
+## Input
 
-<!-- What data formats does the product accept as input in the first version? -->
+The only input surface is the Android Share intent:
 
-Supported:
-
-| Format | Notes |
+| Input | Notes |
 |---|---|
-| [format 1 — e.g. CSV] | [e.g. flexible column mapping] |
-| [format 2 — e.g. KML] | [e.g. extracts points and linestrings] |
-| [format 3] | |
-
-Not supported in v1 (explicitly deferred):
-
-- [format A]
-- [format B]
-
----
-
-## Export / Output Formats — v1
-
-<!-- What does the product produce as output? -->
-
-Supported:
-
-| Format | Notes |
-|---|---|
-| [format 1 — e.g. GTFS zip] | [e.g. hosted at stable URL] |
-| [format 2 — e.g. GeoJSON] | [e.g. generated on demand] |
+| Share intent with `text/plain` MIME type containing an HTTP/HTTPS URL | Primary entry point |
 
 Not supported in v1:
 
-- [format A]
+- Sharing images or files
+- Manual URL entry within the app (may be added in Phase 2)
+- RSS feed ingestion
+
+---
+
+## Output
+
+| Output | Notes |
+|---|---|
+| In-app article list | All saved articles, sorted by `createdAt` descending |
+| Article detail screen | Title, summary, full extracted body, original URL link |
+| System notifications | Silent processing notification + completion notification |
 
 ---
 
 ## Validation Rules
 
-<!-- Define which issues block the user from completing/publishing
-     and which are warnings shown but do not block. -->
+### Processing Blockers (article moves to FAILED)
 
-### Completion Blockers (hard errors)
+These prevent successful processing and result in a FAILED article with an error message:
 
-These prevent the output from being generated or published:
+- URL is not reachable (network error or non-2xx HTTP response)
+- HTML fetch returns no content
+- LLM API returns a non-2xx response or malformed JSON
+- LLM API key is missing or rejected (401/403)
+- Extraction yields neither a title nor any body text (completely empty page)
 
-- [blocker 1 — e.g. "Required field X missing on entity Y"]
-- [blocker 2]
-- [blocker 3]
-- [blocker 4]
+### Warnings (logged, not surfaced to user in v1)
 
-### Warnings (soft errors)
-
-These are shown to the user but do not block completion:
-
-- [warning 1 — e.g. "Entity exists but is not linked to any other entity"]
-- [warning 2]
-- [warning 3]
+- Readability4J extraction returns no body text but a title was found — article is saved with empty body
+- LLM response is non-empty but shorter than 20 characters — saved as-is, no retry
 
 ---
 
-## Multi-Tenant and Organization Model
+## Single-User Model
 
-<!-- How are users, teams, and data organized?
-     Skip or simplify this section if the product is single-user. -->
-
-For v1:
-
-- [tenant rule 1 — e.g. "Each user belongs to one organization"]
-- [tenant rule 2 — e.g. "Each organization owns one or more projects"]
-- [tenant rule 3 — e.g. "Users within an organization can view and edit all projects"]
-
-Role model in v1:
-
-| Role | Permissions |
-|---|---|
-| Admin | [e.g. manage org settings, invite users, publish] |
-| Editor | [e.g. edit and validate, cannot publish] |
-| Viewer | [e.g. read-only access] |
-
----
-
-## Versioning and Publication Model
-
-<!-- How does the product handle versions of the output?
-     What happens when the user publishes again? -->
-
-**This section may be TBD.** Document known requirements and open questions.
-
-### Known requirements
-
-- [requirement 1 — e.g. "Published output must be available at a stable URL"]
-- [requirement 2 — e.g. "Client controls when to publish"]
-- [requirement 3]
-
-### Scenarios to support
-
-1. [scenario 1 — e.g. "Simple correction: publish, find error, correct, republish"]
-2. [scenario 2 — e.g. "Seasonal versions: activate a saved snapshot"]
-3. [scenario 3]
-
-### Open questions
-
-- [question 1 — e.g. "Should the platform retain named snapshots?"]
-- [question 2]
-
-### Interim decision
-
-[State the simplest model that works for v1 and defer the rest.]
+This is a single-user, single-device application. There are no accounts, organisations, roles, or multi-tenancy concepts in any version of this product.
 
 ---
 
 ## Open Questions
 
-<!-- Unresolved MVP-level questions. Remove once resolved. -->
-
-- [ ] [open question 1]
-- [ ] [open question 2]
+- [ ] Should failed articles be retried automatically or only on explicit user action?
+- [ ] What is the maximum article body length sent to the LLM (token budget)?
