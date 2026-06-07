@@ -41,7 +41,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
     val snackbarHostState = remember { SnackbarHostState() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    var providerExpanded by remember { mutableStateOf(false) }
+    var modelExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.saved) {
         if (uiState.saved) {
@@ -66,15 +66,17 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("LLM Provider", style = MaterialTheme.typography.titleMedium)
+            Text("LLM Model", style = MaterialTheme.typography.titleMedium)
 
-            val providers = listOf("openai" to "OpenAI", "openrouter" to "OpenRouter")
+            val selectedLabel = com.mypocketnews.ui.settings.OpenRouterModels
+                .find { it.id == uiState.modelId }?.label ?: OpenRouterModels.first().label
+
             ExposedDropdownMenuBox(
-                expanded = providerExpanded,
-                onExpandedChange = { providerExpanded = !providerExpanded }
+                expanded = modelExpanded,
+                onExpandedChange = { modelExpanded = !modelExpanded }
             ) {
                 OutlinedTextField(
-                    value = providers.find { it.first == uiState.provider }?.second ?: "OpenAI",
+                    value = selectedLabel,
                     onValueChange = {},
                     modifier = Modifier
                         .fillMaxWidth()
@@ -88,15 +90,15 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                     colors = ExposedDropdownMenuDefaults.textFieldColors()
                 )
                 ExposedDropdownMenu(
-                    expanded = providerExpanded,
-                    onDismissRequest = { providerExpanded = false }
+                    expanded = modelExpanded,
+                    onDismissRequest = { modelExpanded = false }
                 ) {
-                    providers.forEach { (value, label) ->
+                    com.mypocketnews.ui.settings.OpenRouterModels.forEach { modelOption ->
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = { Text(modelOption.label) },
                             onClick = {
-                                viewModel.onProviderChange(value)
-                                providerExpanded = false
+                                viewModel.onModelChange(modelOption.id)
+                                modelExpanded = false
                             }
                         )
                     }
@@ -112,17 +114,9 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                 singleLine = true
             )
 
-            OutlinedTextField(
-                value = uiState.model,
-                onValueChange = { viewModel.onModelChange(it) },
-                label = { Text("Model") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
             TextButton(
                 onClick = {
-                    viewModel.save(uiState.provider, uiState.apiKey, uiState.model)
+                    viewModel.save(uiState.apiKey, uiState.modelId)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
