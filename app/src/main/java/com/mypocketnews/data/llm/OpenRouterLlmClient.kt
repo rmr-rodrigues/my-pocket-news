@@ -14,12 +14,12 @@ class OpenRouterLlmClient(
     override suspend fun summarise(title: String, bodyText: String): String = withContext(Dispatchers.IO) {
         val requestBody = JSONObject().apply {
             put("model", config.model)
-            put("max_tokens", 512)
+            put("max_tokens", 1024)
             put("temperature", 0.3)
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
-                    put("content", "You are a news summariser. Summarise the following article in 3–5 sentences in the same language as the article. Be factual and concise.")
+                    put("content", "You are a news summariser. Summarise the key points of the following article concisely, in the same language as the article. Be factual and cover all main topics.")
                 })
                 put(JSONObject().apply {
                     put("role", "user")

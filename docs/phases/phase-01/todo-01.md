@@ -304,7 +304,7 @@ Creates the WorkManager worker and the factory required for manual dependency in
 
 ## Group: Application Wiring
 
-### [ ] APP-1 — Application class and dependency graph
+### [x] APP-1 — Application class and dependency graph
 
 Creates the app-level object graph and wires all singletons.
 
