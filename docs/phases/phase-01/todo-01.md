@@ -27,7 +27,7 @@
 
 ## Group: Infrastructure
 
-### [ ] INFRA-1 — Android project scaffold and Gradle configuration
+### [x] INFRA-1 — Android project scaffold and Gradle configuration
 
 Creates the buildable Android project skeleton.
 
@@ -60,7 +60,7 @@ Creates the buildable Android project skeleton.
 
 ---
 
-### [ ] INFRA-2 — Room database, Article entity, DAO, and database class
+### [x] INFRA-2 — Room database, Article entity, DAO, and database class
 
 Creates the local persistence layer.
 
@@ -103,7 +103,7 @@ Creates the local persistence layer.
 
 ---
 
-### [ ] INFRA-3 — Settings storage backed by EncryptedSharedPreferences
+### [x] INFRA-3 — Settings storage backed by EncryptedSharedPreferences
 
 Creates secure storage for LLM provider configuration.
 
