@@ -19,6 +19,11 @@ class ShareActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (savedInstanceState != null) {
+            finish()
+            return
+        }
+
         lifecycleScope.launch {
             val app = application as MyPocketNewsApp
 
@@ -37,6 +42,13 @@ class ShareActivity : ComponentActivity() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivity(intent)
+                finish()
+                return@launch
+            }
+
+            val existing = app.database.articleDao().getByUrlAndPendingOrProcessing(url)
+            if (existing != null) {
+                Toast.makeText(this@ShareActivity, "Already processing this article", Toast.LENGTH_SHORT).show()
                 finish()
                 return@launch
             }

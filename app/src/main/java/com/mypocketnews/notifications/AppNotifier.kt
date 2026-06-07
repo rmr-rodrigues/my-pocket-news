@@ -54,13 +54,14 @@ class AppNotifier {
         }
     }
 
-    fun postError(context: Context, errorMessage: String, notificationId: Int) {
+    fun postError(context: Context, errorMessage: String, notificationId: Int, articleTitle: String? = null) {
         if (!checkPermission(context)) return
+        val title = articleTitle ?: "Could not save article"
         NotificationManagerCompat.from(context).notify(
             notificationId,
             NotificationCompat.Builder(context, "error")
-                .setContentTitle("Could not save article")
-                .setContentText(errorMessage.take(80))
+                .setContentTitle(title)
+                .setContentText(errorMessage.take(200))
                 .setSmallIcon(android.R.drawable.ic_popup_sync)
                 .build()
         )

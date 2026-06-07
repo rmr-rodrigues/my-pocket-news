@@ -10,11 +10,26 @@ class ArticleExtractor(private val okHttpClient: OkHttpClient) {
 
     suspend fun extract(url: String): ExtractedArticle = withContext(Dispatchers.IO) {
         val response = okHttpClient.newCall(
-            okhttp3.Request.Builder().url(url).build()
+            okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+                .header("Accept-Language", "en-US,en;q=0.9,pt;q=0.8,gl;q=0.7")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Connection", "keep-alive")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "none")
+                .header("Sec-Fetch-User", "?1")
+                .header("Sec-CH-UA", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
+                .header("Sec-CH-UA-Mobile", "?1")
+                .header("Sec-CH-UA-Platform", "\"Android\"")
+                .header("Upgrade-Insecure-Requests", "1")
+                .build()
         ).execute()
 
         if (!response.isSuccessful) {
-            throw ExtractionException("HTTP ${response.code}: ${response.message}")
+            throw ExtractionException("Failed to fetch article: ${url} — HTTP ${response.code}")
         }
 
         val html = response.body?.string()

@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import com.mypocketnews.data.settings.LlmProviderConfig
+import com.mypocketnews.data.llm.LlmRateLimitException
 
 class OpenAiLlmClient(
     private val config: LlmProviderConfig,
@@ -14,6 +15,28 @@ class OpenAiLlmClient(
 ) : LlmClient {
 
     override suspend fun summarise(title: String, bodyText: String): String = withContext(Dispatchers.IO) {
+        val maxRetries = 3
+        val delays = listOf(5000L, 10000L, 20000L)
+
+        var lastException: LlmRateLimitException? = null
+
+        for (attempt in 0 until maxRetries) {
+            try {
+                return@withContext doSummarise(title, bodyText)
+            } catch (e: LlmRateLimitException) {
+                lastException = e
+                if (attempt < maxRetries - 1) {
+                    kotlinx.coroutines.delay(delays[attempt])
+                }
+            } catch (e: LlmException) {
+                throw e
+            }
+        }
+
+        throw lastException ?: LlmRateLimitException("OpenAI rate limit hit after $maxRetries retries")
+    }
+
+    private suspend fun doSummarise(title: String, bodyText: String): String {
         val requestBody = JSONObject().apply {
             put("model", config.model)
             put("max_tokens", 1024)
@@ -43,14 +66,19 @@ class OpenAiLlmClient(
             throw LlmAuthException("Invalid API key — check Settings")
         }
 
+        if (response.code == 429) {
+            val errorBody = response.body?.string()?.take(200) ?: ""
+            throw LlmRateLimitException("OpenAI rate limit hit (model: ${config.model}): $errorBody")
+        }
+
         if (!response.isSuccessful) {
             val errorBody = response.body?.string()?.take(200) ?: ""
-            throw LlmException("LLM API error ${response.code}: $errorBody")
+            throw LlmException("OpenAI error ${response.code} (model: ${config.model}): $errorBody")
         }
 
         val responseBody = response.body?.string() ?: throw LlmException("Empty LLM response")
         val json = JSONObject(responseBody)
-        json.getJSONArray("choices")
+        return json.getJSONArray("choices")
             .getJSONObject(0)
             .getJSONObject("message")
             .getString("content")

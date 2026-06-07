@@ -32,9 +32,10 @@ class ArticleProcessingWorker(
         val article = db.articleDao().getById(articleId)
             ?: return Result.failure()
 
+        val notifier = AppNotifier()
+
         db.articleDao().update(article.copy(status = ArticleStatus.PROCESSING))
 
-        val notifier = AppNotifier()
         setForeground(
             ForegroundInfo(
                 articleId.toInt(),
@@ -53,7 +54,7 @@ class ArticleProcessingWorker(
                             errorMessage = "No LLM provider configured"
                         )
                     )
-                    notifier.postError(applicationContext, "No LLM provider configured", articleId.toInt())
+                    notifier.postError(applicationContext, "No LLM provider configured", articleId.toInt(), extracted.title.ifBlank { null })
                     return Result.failure()
                 }
 
@@ -66,7 +67,7 @@ class ArticleProcessingWorker(
                         errorMessage = "Invalid API key — check Settings"
                     )
                 )
-                notifier.postError(applicationContext, "Invalid API key — check Settings", articleId.toInt())
+                notifier.postError(applicationContext, "Invalid API key — check Settings", articleId.toInt(), extracted.title.ifBlank { null })
                 return Result.failure()
             } catch (e: LlmException) {
                 db.articleDao().update(
@@ -75,7 +76,7 @@ class ArticleProcessingWorker(
                         errorMessage = e.message
                     )
                 )
-                notifier.postError(applicationContext, e.message ?: "LLM error", articleId.toInt())
+                notifier.postError(applicationContext, e.message ?: "LLM error", articleId.toInt(), extracted.title.ifBlank { null })
                 return Result.failure()
             }
 
@@ -100,7 +101,7 @@ class ArticleProcessingWorker(
                     errorMessage = e.message
                 )
             )
-            notifier.postError(applicationContext, e.message ?: "Extraction failed", articleId.toInt())
+            notifier.postError(applicationContext, e.message ?: "Extraction failed", articleId.toInt(), null)
             Result.failure()
         }
     }
