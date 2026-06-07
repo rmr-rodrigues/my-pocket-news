@@ -2,7 +2,7 @@ package com.mypocketnews.data.extraction
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import net.dankito.readability4j.Readability
+import net.dankito.readability4j.Readability4J
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
 
@@ -14,19 +14,19 @@ class ArticleExtractor(private val okHttpClient: OkHttpClient) {
         ).execute()
 
         if (!response.isSuccessful) {
-            throw ExtractionException("HTTP ${response.code}: ${response.message()}")
+            throw ExtractionException("HTTP ${response.code}: ${response.message}")
         }
 
         val html = response.body?.string()
             ?: throw ExtractionException("Empty response body")
 
         val jsoupDocument = Jsoup.parse(html, url)
-        val article = Readability(url, jsoupDocument).parse()
+        val article = Readability4J(url, jsoupDocument).parse()
 
-        val title = if (!article.title.isBlank()) article.title
+        val title = if (!article.title.isNullOrBlank()) article.title!!
         else jsoupDocument.title().ifEmpty { "" }
 
-        val bodyText = Jsoup.parse(article.content).text()
+        val bodyText = Jsoup.parse(article.content ?: "").text()
 
         if (title.isBlank() && bodyText.isBlank()) {
             throw ExtractionException("Could not extract readable content from this page")

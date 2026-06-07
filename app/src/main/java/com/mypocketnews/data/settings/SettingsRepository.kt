@@ -6,8 +6,8 @@ import androidx.security.crypto.MasterKey
 
 class SettingsRepository(context: Context) {
 
-    private val masterKey = MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS, MasterKey.KeyParameterBuilder.AES256_GCM_HKDF_SHA256)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM_HKDF_SHA256)
+    private val masterKey = MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
     private val prefs = EncryptedSharedPreferences.create(

@@ -2,7 +2,9 @@ package com.mypocketnews.data.llm
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import com.mypocketnews.data.settings.LlmProviderConfig
 
@@ -32,10 +34,7 @@ class OpenAiLlmClient(
             .url("${config.baseUrl}/chat/completions")
             .header("Authorization", "Bearer ${config.apiKey}")
             .header("Content-Type", "application/json")
-            .post(okhttp3.RequestBody.create(
-                okhttp3.MediaType.parse("application/json"),
-                requestBody
-            ))
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
             .build()
 
         val response = okHttpClient.newCall(request).execute()
