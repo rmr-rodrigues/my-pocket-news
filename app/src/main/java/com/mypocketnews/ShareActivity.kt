@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.mypocketnews.data.db.Article
 import com.mypocketnews.data.db.ArticleStatus
+import com.mypocketnews.ui.MainActivity
 import com.mypocketnews.worker.ArticleProcessingWorker
 import kotlinx.coroutines.launch
 

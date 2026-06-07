@@ -1,0 +1,16 @@
+# Build outputs
+app/build/
+build/
+.gradle/
+
+# Local configuration — machine-specific, never commit
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Keystore files
+*.jks
+*.keystore

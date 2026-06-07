@@ -1,6 +1,6 @@
 package com.mypocketnews.ui.list
 
-import android.text.DateUtils
+import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,11 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mypocketnews.data.db.Article
 import com.mypocketnews.data.db.ArticleStatus
 import android.net.Uri
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleListScreen(
     viewModel: ArticleListViewModel,
